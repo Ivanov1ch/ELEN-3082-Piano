@@ -79,41 +79,9 @@ END PROCESS;
    	 end loop;
    	 -- Prepare to run sim
    	 wait for 50 ns;
-   	 -- Simulate playing B3
-   	 switch_in(1) <= '1';
-   	 wait for 1 ms;
-   	 switch_in(1) <= '0';
-   	 wait for 1 ms;
-   	 -- Simulate playing A3
-     switch_in(2) <= '1';
-   	 wait for 1 ms;
-   	 switch_in(2) <= '0';
-   	 wait for 1 ms;
-   	 -- Simulate playing G3
-   	 switch_in(3) <= '1';
-   	 wait for 1 ms;
-   	 switch_in(3) <= '0';
-   	 wait for 1 ms;
-   	 -- Simulate playing F3
-   	 switch_in(4) <= '1';
-   	 wait for 0.5 ms;
-   	 -- Make it a F3#
-   	 pb_in(2) <= '1';
-   	 wait for 0.5 ms;
-   	 pb_in(2) <= '0';
-   	 wait for 1 ms;
-   	 switch_in(4) <= '0';
-   	 wait for 1 ms;
-   	 -- Simulate playing E3
-   	 switch_in(5) <= '1';
-   	 wait for 1 ms;
-   	 switch_in(5) <= '0';
-   	 wait for 1 ms;
-   	 -- Simulate playing D3
-   	 switch_in(6) <= '1';
-   	 wait for 1 ms;
-   	 switch_in(6) <= '0';
-   	 wait for 1 ms;
+   	 switch_in(0) <= '1';
+   	 wait for 100 ns;
+   	 switch_in(0) <= '0';
    	 -- End of sim
    END PROCESS;
 -- *** End Test Bench - User Defined Section ***

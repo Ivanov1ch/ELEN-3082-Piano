@@ -86,6 +86,11 @@ architecture Behavioral of piano is
              );
    end component;
 
+   -- Custom-defined Signals
+   signal PLAYER_MODE : std_logic := '0';      -- Will be set to 1 when player piano mode is enabled. By default, we are not in player piano mode
+                                               -- This will disable manual playing until the song finishes.
+                                               -- The last switch, the one unused by the manual-playing code, will be used to enable PLAYER_MODE.
+
    -- Signals
    signal CLK         : std_logic;                      -- 50MHz clock after DCM and BUFG
    signal CLK0        : std_logic;                      -- 50MHz clock from pad
@@ -113,7 +118,7 @@ begin
     GND    <= '0';     
     RST    <= PB(0);    -- push button one is the reset
     led(1) <= RST;      -- This is just to make sure our design is running.
-
+    
     -- Combinational logic to turn the sound on and off
     process (div, sound) begin
         if (div = x"0000") then
@@ -228,32 +233,96 @@ begin
 
     -- User Interface
     note_in <= note_next;
-    process (CLK,RST) begin
+    
+    led(2) <= PLAYER_MODE;  -- The LED at index 2 is the player piano mode indicator (LD2 on the board)
+    
+    process (CLK,RST)
+        -- The song is 110 BPM, so each measure is 2.16 seconds. The smallest note is a 16th, so we'll represent ALL notes as 1+ 16th-notes in a row
+        variable note_length      : integer := 13625000; -- This is how many clock cycles a 16th note will be - (2.18 seconds / 16) * 10^8 (because the frequency is 100 MHz)
+        variable current_note_num : integer := 0;        -- This is the number (0-indexed) of the note we currently are on in the song. Ex: 2 = 3rd note.
+        variable song_cycle_counter : integer := 0;      -- This counts how many internal clock cycles have passed since the song has started playing.
+                                                         -- This is used to handle timing to play the song by switching the notes at the right time.
+        variable PLAYING_SONG : std_logic := '0';        -- A flag used to keep track of when the song is ready to be played, starting the counting of cycles
+        
+        variable num_notes : integer := 56; -- Contains the total number of notes in the song, so we know when to stop.   
+        -- Stores all the notes of the song, encoded in the same format as note_next (including the custom notes, see note_gen), in order, so each 16th note is a 5-bit sequence. 
+        -- Thus, the first 5 bits are the note_next for the first 16th note, bits 6-10 are the note_next for the second 16th note, and so on.
+        -- For the sake of readability, we've split it up into many concatenated 5-bit chunks, with paired parentheses around the components of each note larger than a 16th
+        -- A chunk "00000" represents a rest for that 16th, stored in REST for readability
+        variable REST : std_logic_vector(4 downto 0) := "00000";
+        variable SONG_NOTES  : std_logic_vector(0 to (num_notes * 5) - 1) := ("11110" & "11110") & (REST & REST) & ("01100" & "01100") & ("10011" & "10011") & ("10101" & "10101")
+                                                                           & ("10110" & "10110") & ("10101" & "10101") & ("10011" & "10011") & ("01100" & "01100")
+                                                                           & (REST & REST & REST & REST) & ("01010") & ("10010") & ("01100" & "01100") & (REST & REST & REST & REST)
+                                                                           & ("11111" & "11111") & ("11110" & "11110") & (REST & REST) & ("01100" & "01100") & ("10011" & "10011") 
+                                                                           & ("10101" & "10101") & ("10110" & "10110") & ("10101" & "10101") & ("10011" & "10011") & ("10110" & "10110")
+                                                                           & (REST & REST & REST & REST & REST & REST);  
+                                                 
+    begin
         if (RST = '1') then
             note_next <= (others => '0');
-        elsif (CLK'event and CLK = '1') then                        
-            case switch is 
-                when "10000000" => note_sel <= "0001"; -- C
-                when "01000000" => note_sel <= "0011"; -- D
-                when "00100000" => note_sel <= "0101"; -- E
-                when "00010000" => note_sel <= "0110"; -- F
-                when "00001000" => note_sel <= "1000"; -- G
-                when "00000100" => note_sel <= "1010"; -- A
-                when "00000010" => note_sel <= "1100" ; -- B
-                when others     => note_sel <= "0000"; 
-            end case;
-
-            -- Sharp -- Add one.  PB(3) is the octave key.
-            if (PB(2) = '1') then
-                note_next <= PB(3) & note_sel + 1;
-            -- Flat --  Minus one.
-            elsif (PB(1) = '1') then
-                note_next <= PB(3) & note_sel - 1;
-            else 
-                note_next <= PB(3) & note_sel;
+            -- We should also reset everything related to player piano mode and playing the song
+            song_cycle_counter := 0;
+            current_note_num := 0;
+            PLAYING_SONG := '0';
+            PLAYER_MODE <= '0';
+        elsif (CLK'event and CLK = '1') then  
+            -- Are we in song? If so, start incrementing the cycle counter to keep track of time!
+            if (PLAYING_SONG = '1') then
+                song_cycle_counter := song_cycle_counter + 1;
+                -- Increment the current_note_num if we need to!
+                if (song_cycle_counter >= (current_note_num + 1) * note_length) then
+                    current_note_num := current_note_num + 1;
+                end if;
+                
+                if (current_note_num = num_notes) then
+                    song_cycle_counter := 0;
+                    current_note_num := 0;
+                    PLAYING_SONG := '0';
+                    PLAYER_MODE <= '0';
+                end if;
             end if;
-
-        end if;
-    end process; 
+            -- When this switch is flipped, the piano goes into player piano mode, but we don't let the user start this mode unless all other switches are off
+            -- That is to say, to avoid users accidentally entering player piano mode while playing, we only start player piano mode when that's the only switch pressed
+            if (PLAYER_MODE = '0') and (switch = "00000001") then
+                -- We've just toggled and we're ready to start playing the song - reset the song_cycle_counter and current_note_num, and flag us as in-song
+                song_cycle_counter := 0;
+                current_note_num := 0;
+                PLAYING_SONG := '1';
+                
+                PLAYER_MODE <= '1';
+            elsif (PLAYER_MODE = '1') and(switch(0) = '1') then
+                -- We're in player piano mode, and the switch to stay in it is still on
+                -- We ignore all other inputs - the user isn't able to play, and them attempting to do so should not break us out of PLAYER_MODE
+                -- This handles the playing of the current note 
+                if (PLAYING_SONG = '1') then
+                    note_next <= SONG_NOTES((current_note_num * 5) to ((current_note_num * 5) + 4));
+                end if;
+            else                   
+                -- We're not in player piano mode
+                PLAYER_MODE <= '0';
+                PLAYING_SONG := '0';
+                -- Handle manual playing as usual
+                case switch is 
+                    when "10000000" => note_sel <= "0001"; -- C
+                    when "01000000" => note_sel <= "0011"; -- D
+                    when "00100000" => note_sel <= "0101"; -- E
+                    when "00010000" => note_sel <= "0110"; -- F
+                    when "00001000" => note_sel <= "1000"; -- G
+                    when "00000100" => note_sel <= "1010"; -- A
+                    when "00000010" => note_sel <= "1100"; -- B
+                    when others     => note_sel <= "0000";
+                end case;
     
+                -- Sharp -- Add one.  PB(3) is the octave key.
+                if (PB(2) = '1') then
+                    note_next <= PB(3) & note_sel + 1;
+                -- Flat --  Minus one.
+                elsif (PB(1) = '1') then
+                    note_next <= PB(3) & note_sel - 1;
+                else 
+                    note_next <= PB(3) & note_sel;
+                end if;
+            end if;
+        end if;
+    end process;
 end Behavioral;
