@@ -60,9 +60,6 @@ begin
     when "11010" => next_div <= x"0470"; -- A4
     when "11011" => next_div <= x"0431"; -- A4#
     when "11100" => next_div <= x"03F4"; -- B4
-    -- CUSTOM NOTE WRITE-INS FOR CUSTOM SONG - we need some notes below C3 and we don't want to change the whole system so we're adding them here
-    when "11110" => next_div <= x"0FD2"; -- B2
-    when "11111" => next_div <= x"151D"; -- F2#
     when others => next_div <= x"0000";
    end case;
    end process;

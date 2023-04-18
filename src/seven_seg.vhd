@@ -56,9 +56,6 @@ begin
         when "11010" => seg_buf <= "1010" & "0100" & '0'; -- A4
         when "11011" => seg_buf <= "1010" & "0100" & '1'; -- A4#
         when "11100" => seg_buf <= "1011" & "0100" & '0'; -- B4
-        -- CUSTOM NOTE WRITE-INS FOR CUSTOM SONG - we need some notes below C3 and we don't want to change the whole system so we're adding them here
-        when "11110" => seg_buf <= "1011" & "0010" & '0'; -- B2
-        when "11111" => seg_buf <= "1111" & "0010" & '1'; -- F2#
         when others  => seg_buf <= "1010" & "1010" & '1'; -- AA.
        end case;
     end if;

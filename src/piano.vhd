@@ -237,25 +237,36 @@ begin
     led(2) <= PLAYER_MODE;  -- The LED at index 2 is the player piano mode indicator (LD2 on the board)
     
     process (CLK,RST)
-        -- The song is 110 BPM, so each measure is 2.16 seconds. The smallest note is a 16th, so we'll represent ALL notes as 1+ 16th-notes in a row
-        variable note_length      : integer := 13625000; -- This is how many clock cycles a 16th note will be - (2.18 seconds / 16) * 10^8 (because the frequency is 100 MHz)
+        -- The song is 110 BPM, so each measure is 2.16 seconds. The smallest notes are 16ths and 12ths, so we'll represent ALL notes as 1+ 48th-notes in a row
+        variable note_length      : integer := 4541667; -- This is how many clock cycles a 48th note will be - (2.18 seconds / 48) * 10^8 (because the frequency is 100 MHz)
         variable current_note_num : integer := 0;        -- This is the number (0-indexed) of the note we currently are on in the song. Ex: 2 = 3rd note.
         variable song_cycle_counter : integer := 0;      -- This counts how many internal clock cycles have passed since the song has started playing.
                                                          -- This is used to handle timing to play the song by switching the notes at the right time.
         variable PLAYING_SONG : std_logic := '0';        -- A flag used to keep track of when the song is ready to be played, starting the counting of cycles
         
-        variable num_notes : integer := 56; -- Contains the total number of notes in the song, so we know when to stop.   
-        -- Stores all the notes of the song, encoded in the same format as note_next (including the custom notes, see note_gen), in order, so each 16th note is a 5-bit sequence. 
-        -- Thus, the first 5 bits are the note_next for the first 16th note, bits 6-10 are the note_next for the second 16th note, and so on.
-        -- For the sake of readability, we've split it up into many concatenated 5-bit chunks, with paired parentheses around the components of each note larger than a 16th
-        -- A chunk "00000" represents a rest for that 16th, stored in REST for readability
+        variable num_notes : integer := 192; -- Contains the total number of notes in the song, so we know when to stop.   
+        -- Stores all the notes of the song, encoded in the same format as note_next in order, so each 48th note is a 5-bit sequence. 
+        -- Thus, the first 5 bits are the note_next for the first 48th note, bits 6-10 are the note_next for the second 48th note, and so on.
+        -- For the sake of readability, we've split it up into many concatenated 5-bit chunks, with paired parentheses around the components of each note larger than a 48th
+        -- A chunk "00000" represents a rest for that 48th, stored in REST for readability
         variable REST : std_logic_vector(4 downto 0) := "00000";
-        variable SONG_NOTES  : std_logic_vector(0 to (num_notes * 5) - 1) := ("11110" & "11110") & (REST & REST) & ("01100" & "01100") & ("10011" & "10011") & ("10101" & "10101")
-                                                                           & ("10110" & "10110") & ("10101" & "10101") & ("10011" & "10011") & ("01100" & "01100")
-                                                                           & (REST & REST & REST & REST) & ("01010") & ("10010") & ("01100" & "01100") & (REST & REST & REST & REST)
-                                                                           & ("11111" & "11111") & ("11110" & "11110") & (REST & REST) & ("01100" & "01100") & ("10011" & "10011") 
-                                                                           & ("10101" & "10101") & ("10110" & "10110") & ("10101" & "10101") & ("10011" & "10011") & ("10110" & "10110")
-                                                                           & (REST & REST & REST & REST & REST & REST);  
+        variable SONG_NOTES  : std_logic_vector(0 to (num_notes * 5) - 1) := ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") & (REST & REST & REST & REST & REST & REST)
+                             & ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") & ("10011" & "10011" & "10011" & "10011" & "10011" & "10011") 
+                             & ("10101" & "10101" & "10101" & "10101" & "10101" & "10101") & ("10110" & "10110" & "10110" & "10110" & "10110" & "10110") 
+                             & ("10101" & "10101" & "10101" & "10101" & "10101" & "10101") & ("10011" & "10011" & "10011" & "10011" & "10011" & "10011") 
+                             & ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") 
+                             & (REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST) & ("01010" & "01010" & "01010") 
+                             & ("10010" & "10010" & "10010") & ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") 
+                             & (REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST) 
+                             & ("00110" & "00110" & "00110" & "00110" & "00110" & "00110") 
+                             & ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") 
+                             & (REST & REST & REST & REST & REST & REST) & ("01100" & "01100" & "01100" & "01100" & "01100" & "01100") 
+                             & ("10011" & "10011" & "10011" & "10011" & "10011" & "10011") & ("10101" & "10101" & "10101" & "10101" & "10101" & "10101") 
+                             & ("10110" & "10110" & "10110" & "10110" & "10110" & "10110") & ("10101" & "10101" & "10101" & "10101" & "10101" & "10101") 
+                             & ("10011" & "10011" & "10011" & "10011" & "10011" & "10011") & ("10110" & "10110" & "10110" & "10110" & "10110" & "10110") 
+                             & (REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST & REST) 
+                             & ("10110" & "10110" & "10110" & "10110") & ("10101" & "10101" & "10101" & "10101") & ("10011" & "10011" & "10011" & "10011") 
+                             & ("10110" & "10110" & "10110" & "10110") & ("10101" & "10101" & "10101" & "10101") & ("10011" & "10011" & "10011" & "10011");                                                     
                                                  
     begin
         if (RST = '1') then
