@@ -237,7 +237,7 @@ begin
     led(2) <= PLAYER_MODE;  -- The LED at index 2 is the player piano mode indicator (LD2 on the board)
     
     process (CLK,RST)
-        -- The song is 110 BPM, so each measure is 2.16 seconds. The smallest notes are 16ths and 12ths, so we'll represent ALL notes as 1+ 48th-notes in a row
+        -- The song is 110 BPM, so each measure is 2.18 seconds. The smallest notes are 16ths and 12ths, so we'll represent ALL notes as 1+ 48th-notes in a row
         variable note_length      : integer := 4541667; -- This is how many clock cycles a 48th note will be - (2.18 seconds / 48) * 10^8 (because the frequency is 100 MHz)
         variable current_note_num : integer := 0;        -- This is the number (0-indexed) of the note we currently are on in the song. Ex: 2 = 3rd note.
         variable song_cycle_counter : integer := 0;      -- This counts how many internal clock cycles have passed since the song has started playing.
